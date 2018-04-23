@@ -2,5 +2,23 @@
 name = "process_lock"
 version = "0.1.0"
 authors = ["tickbh <tickdream125@hotmail.com>"]
+description = "This is process lock impl multi process for rust"
+license = "Apache-2.0/MIT"
+documentation = "https://docs.rs/process_lock"
+repository = "https://github.com/tickbh/ProcessLock"
+readme = "README.md"
+keywords = ["process", "multi_process", "cross_platform", "lock"]
 
 [dependencies]
+libc = "0.2"
+winapi = { version = "0.3", features = ["winuser", "memoryapi", "winbase", "errhandlingapi", "handleapi", "minwinbase", "minwindef" ] }
+#share_memory = "0.1"
+
+
+
+[dependencies.share_memory]
+path = "../ShareMemory"
+
+
+[dev-dependencies]
+time = "0.1.39"
