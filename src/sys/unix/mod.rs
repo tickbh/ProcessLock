@@ -1,10 +1,8 @@
 use libc;
-use share_memory::ShareMemory;
 
-use std::mem::size_of;
-use std::cell::UnsafeCell;
 use std::io::{self, Result, Error, ErrorKind};
 
+#[allow(dead_code)]
 #[repr(C)]
 #[derive(Copy, Clone)]
 #[cfg(target_os = "linux")]
@@ -17,6 +15,7 @@ pub enum Sem {
   SETALL  = 17,
 }
 
+#[allow(dead_code)]
 #[repr(C)]
 #[derive(Copy, Clone)]
 #[cfg(target_os = "macos")]
@@ -30,7 +29,6 @@ pub enum Sem {
 }
 
 pub const SEM_NUM: u16 = 0;
-pub const NSEMS: i32 = 1;
 pub const NSOPS: usize = 1;
 pub const SEM_UNDO: i16 = 0x1000;
 
@@ -64,13 +62,7 @@ pub struct LockGuard {
 
 impl Drop for LockGuard {
     fn drop(&mut self) {
-        unsafe {
-            let lock = ProcessLock {
-                id: self.id
-            };
-            let _ = lock.unlock();
-            // libc::sem_post(self.sem);
-        }
+        let _ = ProcessLock::unlock_by_id(self.id);
     }
 }
 
@@ -89,54 +81,26 @@ impl ProcessLock {
         return h;
     }
 
-    pub fn new_create(name: String, path_name: Option<String>) -> Result<ProcessLock> {
+    pub fn new(name: String, path_name: Option<String>) -> Result<ProcessLock> {
         let path = path_name.clone().unwrap_or(String::from("."));
         let code = Self::hash_code(&name);
         unsafe {
             let key = cvt(libc::ftok(path.as_bytes().as_ptr() as *mut i8, code))?;
-            println!("key = {:?}", key);
             let (id, is_create) = match cvt(libc::semget(key, 1024, 0o0666)) {
                 Ok(id) => {
                     (id, false)
                 }
                 Err(_) => {
-                    println!("get failed");
                     (cvt(libc::semget(key, 1024, 0o0666 | libc::IPC_CREAT | libc::IPC_EXCL))?, true)
                 }
             };
-            println!("id = {:?} is_create = {:?}", id, is_create);
             if is_create {
-                /// 如果要得到信号量的值, 直接用Sem::GETVAL, 但是GETVAL是直接做为返回值返回的
+                // 如果要得到信号量的值, 直接用Sem::GETVAL, 但是GETVAL是直接做为返回值返回的
                 cvt(libc::semctl(id, SEM_NUM as i32, Sem::SETVAL as libc::c_int, 1))?;
-                
-                let val = cvt(libc::semctl(id, SEM_NUM as i32, Sem::GETVAL as libc::c_int, 0))?;
-                println!("1111111111111111111111111 val = {:?}", val);
             }
             return Ok(ProcessLock {
                 id: id,
             })
-        }
-    }
-    
-    pub fn new_open(name: String, path_name: Option<String>) -> Result<ProcessLock> {
-        let path = path_name.clone().unwrap_or(String::from("."));
-        let code = Self::hash_code(&name);
-        unsafe {
-            let key = cvt(libc::ftok(path.as_bytes().as_ptr() as *mut i8, code))?;
-            println!("key = {:?}", key);
-            match cvt(libc::semget(key, 1024, 0o0666)) {
-                Ok(id) => {
-                    return Ok(ProcessLock {
-                        id: id,
-                    })
-                }
-                Err(_) => {
-                    let id = cvt(libc::semget(key, 1024, 0o0666 | libc::IPC_CREAT | libc::IPC_EXCL))?;
-                    return Ok(ProcessLock {
-                        id: id,
-                    })
-                }
-            }
         }
     }
 
@@ -147,7 +111,6 @@ impl ProcessLock {
             sem_flg: SEM_UNDO | libc::IPC_NOWAIT as i16,
         };
         unsafe {
-            println!("last OS error: {:?}", Error::last_os_error());
             let ret = libc::semop(self.id, &mut op as *mut libc::sembuf, NSOPS);
             let err = io::Error::last_os_error();
             if err.raw_os_error() == Some(libc::EAGAIN) {
@@ -176,13 +139,17 @@ impl ProcessLock {
     }
 
     pub fn unlock(&self) -> Result<()> {
+        Self::unlock_by_id(self.id)
+    }
+
+    pub fn unlock_by_id(id: libc::c_int) -> Result<()> {
         unsafe {
             let mut op = libc::sembuf {
                 sem_num: SEM_NUM,
                 sem_op: 1,
                 sem_flg: SEM_UNDO,
             };
-            cvt(libc::semop(self.id, &mut op, NSOPS))?;
+            cvt(libc::semop(id, &mut op, NSOPS))?;
             Ok(())
         }
     }
@@ -191,6 +158,7 @@ impl ProcessLock {
         self.check_vaild()?;
         unsafe {
             cvt(libc::semctl(self.id, SEM_NUM as i32, libc::IPC_RMID))?;
+            self.id = -1;
         }
         Ok(())
     }
@@ -200,11 +168,5 @@ impl ProcessLock {
             return Err(Error::new(ErrorKind::InvalidData, "no vaild"));
         }
         return Ok(true);
-    }
-}
-
-impl Drop for ProcessLock {
-    fn drop(&mut self) {
-        let _ = self.destory();
     }
 }

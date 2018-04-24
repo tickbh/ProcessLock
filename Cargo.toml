@@ -11,14 +11,7 @@ keywords = ["process", "multi_process", "cross_platform", "lock"]
 
 [dependencies]
 libc = "0.2"
-winapi = { version = "0.3", features = ["winuser", "memoryapi", "winbase", "errhandlingapi", "handleapi", "minwinbase", "minwindef" ] }
-#share_memory = "0.1"
-
-
-
-[dependencies.share_memory]
-path = "../ShareMemory"
-
+winapi = { version = "0.3", features = ["winbase", "errhandlingapi", "handleapi", "minwinbase", "synchapi", "winerror" ] }
 
 [dev-dependencies]
 time = "0.1.39"

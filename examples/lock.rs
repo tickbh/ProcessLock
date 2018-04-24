@@ -1,34 +1,19 @@
 extern crate process_lock;
-extern crate time;
+use std::time::{Duration, Instant};
 use process_lock::*;
 
 fn main () {
-    let now = time::precise_time_ns() / 1000 as u64;
-    println!("now = {:?}", now);
-    let mut lock = ProcessLock::new_create(String::from(".xxx1"), None);
+    let lock = ProcessLock::new(String::from(".process_lock"), None).unwrap();
     
-
-    println!("fkkkkkkkkkkkkkkkkkkkkkk");
-    // println!("lock = {:?}", lock);
-    let mut lock = lock.unwrap();
-    if now % 2 == 0 {
-        println!("exec lock()");
-        let _guard = lock.lock().unwrap();
-        println!("success get lock");
-        // drop(_guard);
-        lock.destory();
-        loop {
-
+    for i in 0..100 {
+        let now = Instant::now();
+        {
+            let _guard = lock.lock().unwrap();
+            println!("success get the {} lock lock all use time ===== {}", i, now.elapsed().as_secs());
+            let ten_millis = ::std::time::Duration::from_millis(2000);
+            ::std::thread::sleep(ten_millis);
         }
-    } else {
-        println!("exec trylock()");
-        let _guard = lock.trylock().unwrap();
-        println!("_guard = {:?}", _guard);
-        if _guard.is_some() {
-            println!("success get lock");
-        }
-        loop {
-
-        }
-    };
+        let ten_millis = ::std::time::Duration::from_millis(100);
+        ::std::thread::sleep(ten_millis);
+    }
 }
